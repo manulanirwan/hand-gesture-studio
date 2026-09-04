@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finger-Stream CDN & Gesture Pipeline Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#f0fdfa', 500: '#14b8a6', 600: '#0d9488', 900: '#134e4a' },
+                        neon: { cyan: '#00f3ff', pink: '#ff007f', purple: '#b000ff', green: '#00ff66', amber: '#ffaa00' }
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #080b11; color: #f3f4f6; overflow-x: hidden; }
+        .glass-panel { background: rgba(15,23,42,.75); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.1); box-shadow: 0 8px 32px rgba(0,0,0,.37); }
+        .glass-button { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.15); transition: all .25s cubic-bezier(.4,0,.2,1); }
+        .glass-button:hover { background: rgba(255,255,255,.15); border-color: rgba(0,243,255,.5); box-shadow: 0 0 15px rgba(0,243,255,.3); transform: translateY(-1px); }
+        .neon-border-cyan { box-shadow: 0 0 15px rgba(0,243,255,.25), inset 0 0 10px rgba(0,243,255,.15); border-color: rgba(0,243,255,.5); }
+        .neon-border-pink { box-shadow: 0 0 15px rgba(255,0,127,.25), inset 0 0 10px rgba(255,0,127,.15); border-color: rgba(255,0,127,.5); }
+        .pulse-glow { animation: pulseGlow 2s infinite alternate; }
+        @keyframes pulseGlow { 0% { box-shadow: 0 0 10px rgba(0,243,255,.2); } 100% { box-shadow: 0 0 25px rgba(0,243,255,.6); } }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: #0d1117; } ::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #00f3ff; }
+        .scanline { background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,243,255,.05) 50%, rgba(0,243,255,.05)); background-size: 100% 4px; }
+        .finger-node { transition: all .3s cubic-bezier(.34,1.56,.64,1); } .finger-node.active { transform: scale(1.15); background: #00f3ff; box-shadow: 0 0 20px #00f3ff; color: #000; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-neon-cyan selection:text-black">
+    <header class="glass-panel sticky top-0 z-50 border-b border-gray-800 px-4 lg:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-pink-500 flex items-center justify-center text-black font-black text-xl shadow-lg shadow-cyan-500/20"><i class="fa-solid fa-hand"></i></div>
+                <div><div class="flex items-center space-x-2"><h1 class="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-teal-300 to-pink-500">FINGER-STREAM</h1><span class="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/50">CDN v3.8</span></div><p class="text-xs text-gray-400">Media Pipeline Engine & Hand Gesture AI Processing Unit</p></div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 text-xs font-mono">
+                <div class="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800"><span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span><span class="text-gray-400">CDN EDGE:</span><span id="cdn-node-badge" class="text-emerald-400 font-bold">US-EAST-1 (NY)</span></div>
+                <div class="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800"><i class="fa-solid fa-gauge-high text-cyan-400"></i><span class="text-gray-400">BITRATE:</span><span id="bitrate-val" class="text-cyan-300 font-bold">14.8 Mbps</span></div>
+                <div class="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800"><i class="fa-solid fa-bolt text-amber-400"></i><span class="text-gray-400">LATENCY:</span><span id="latency-val" class="text-amber-300 font-bold">8.4 ms</span></div>
+                <div class="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800"><i class="fa-solid fa-microchip text-pink-400"></i><span class="text-gray-400">FPS:</span><span id="fps-val" class="text-pink-300 font-bold">60</span></div>
+            </div>
+            <div class="flex items-center space-x-2"><button id="sound-toggle-btn" class="glass-button p-2.5 rounded-xl text-gray-300 hover:text-cyan-400" title="Toggle Synthesizer Sound Cues"><i class="fa-solid fa-volume-high text-sm"></i></button><button id="fullscreen-btn" class="glass-button p-2.5 rounded-xl text-gray-300 hover:text-cyan-400" title="Toggle Fullscreen"><i class="fa-solid fa-expand text-sm"></i></button></div>
+        </div>
+    </header>
+    <main class="max-w-7xl w-full mx-auto p-4 lg:p-6 flex-grow space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-3"><div class="flex space-x-2 overflow-x-auto py-1">
+            <button data-tab="tab-studio" class="nav-tab active-tab px-4 py-2 rounded-xl text-sm font-semibold flex items-center space-x-2 transition-all bg-gradient-to-r from-cyan-500 to-teal-500 text-black shadow-lg shadow-cyan-500/20"><i class="fa-solid fa-camera"></i><span>Live Media Pipeline</span></button>
+            <button data-tab="tab-cdn" class="nav-tab px-4 py-2 rounded-xl text-sm font-semibold flex items-center space-x-2 transition-all bg-slate-900 text-gray-400 hover:text-white border border-slate-800 hover:border-slate-700"><i class="fa-solid fa-network-wired"></i><span>CDN Architecture Visualizer</span></button>
+            <button data-tab="tab-game" class="nav-tab px-4 py-2 rounded-xl text-sm font-semibold flex items-center space-x-2 transition-all bg-slate-900 text-gray-400 hover:text-white border border-slate-800 hover:border-slate-700"><i class="fa-solid fa-gamepad"></i><span>Finger Math Game</span></button>
+            <button data-tab="tab-actions" class="nav-tab px-4 py-2 rounded-xl text-sm font-semibold flex items-center space-x-2 transition-all bg-slate-900 text-gray-400 hover:text-white border border-slate-800 hover:border-slate-700"><i class="fa-solid fa-bolt"></i><span>Actions</span></button>
+        </div></div>
+        <section id="tab-studio" class="tab-content space-y-6">
+            <div class="grid lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 glass-panel rounded-2xl p-4 relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-3"><div><div class="text-xs font-mono text-cyan-400 font-bold">LIVE FEED // MEDIAPIPE AI ENGINE</div><h2 class="text-2xl font-black">Camera / AI</h2></div><div class="flex gap-2"><button id="start-cam-btn" class="glass-button px-4 py-2 rounded-xl text-sm">Start Camera</button><button id="sim-mode-btn" class="glass-button px-4 py-2 rounded-xl text-sm">Synthetic simulator</button></div></div>
+                    <div class="aspect-video bg-black rounded-xl border border-slate-800 relative overflow-hidden"><video id="video-el" class="w-full h-full object-cover" autoplay playsinline muted></video><canvas id="output-canvas" class="absolute inset-0 w-full h-full"></canvas><div id="camera-prompt-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-950/80"><div class="text-center"><i class="fa-solid fa-camera text-4xl text-cyan-400 mb-3"></i><p class="text-sm text-gray-400">Start the camera or use the synthetic simulator.</p></div></div></div>
+                    <div class="grid sm:grid-cols-3 gap-3 mt-4"><div class="glass-button rounded-xl p-3"><div class="text-xs text-gray-400">LEFT HAND</div><div id="left-count" class="text-2xl font-black text-cyan-400">0</div></div><div class="glass-button rounded-xl p-3"><div class="text-xs text-gray-400">TOTAL FINGERS</div><div id="total-count" class="text-2xl font-black text-pink-400">0</div></div><div class="glass-button rounded-xl p-3"><div class="text-xs text-gray-400">RIGHT HAND</div><div id="right-count" class="text-2xl font-black text-cyan-400">0</div></div></div>
+                </div>
+                <div class="glass-panel rounded-2xl p-5 space-y-5"><div><div class="text-xs font-mono text-pink-400 font-bold">GESTURE CONTROLS</div><h2 class="text-xl font-black">Synthetic simulator</h2></div><div class="grid grid-cols-5 gap-2" id="left-fingers"></div><div class="grid grid-cols-5 gap-2" id="right-fingers"></div><div class="flex gap-2"><button id="sim-reset-btn" class="glass-button flex-1 px-3 py-2 rounded-xl text-sm">Reset</button><button id="sim-random-btn" class="glass-button flex-1 px-3 py-2 rounded-xl text-sm">Random</button></div><div><div class="text-xs text-gray-400 mb-2">VISUAL FILTER</div><div class="grid grid-cols-2 gap-2" id="filter-buttons"><button data-filter="normal" class="glass-button px-3 py-2 rounded-xl text-sm">Normal Filter</button><button data-filter="neon" class="glass-button px-3 py-2 rounded-xl text-sm">Cyberpunk Neon</button><button data-filter="edge" class="glass-button px-3 py-2 rounded-xl text-sm">Edge Detection</button><button data-filter="thermal" class="glass-button px-3 py-2 rounded-xl text-sm">Thermal</button></div></div></div>
+            </div>
+            <div class="glass-panel rounded-2xl p-5"><div class="flex items-center justify-between mb-3"><div><div class="text-xs font-mono text-cyan-400">TELEMETRY</div><h2 class="text-xl font-black">Bitrate Monitor</h2></div><div id="bitrate-val-2" class="font-mono text-cyan-400">14.8 Mbps</div></div><div class="h-32"><canvas id="bitrate-chart-canvas" class="w-full h-full"></canvas></div></div>
+        </section>
+        <section id="tab-cdn" class="tab-content hidden glass-panel rounded-2xl p-6"><div class="text-xs font-mono text-cyan-400">CDN ARCHITECTURE VISUALIZER</div><h2 class="text-2xl font-black mt-1">Edge Node Selection</h2><p class="text-gray-400 text-sm mt-2">Select an edge node to update the simulated pipeline telemetry.</p><div class="grid md:grid-cols-4 gap-4 mt-6">${['us-east|US-EAST-1 (NY)','eu-central|EU-CENTRAL-1 (FRA)','ap-southeast|AP-SOUTHEAST-1 (SIN)','sa-east|SA-EAST-1 (GRU)'].map(x=>{const [id,name]=x.split('|');return `<button class="cdn-node-card glass-button rounded-2xl p-5 text-left" data-node-id="${id}"><div class="text-xs text-gray-400">EDGE NODE</div><div class="font-bold mt-1">${name}</div></button>`}).join('')}</div></section>
+        <section id="tab-game" class="tab-content hidden glass-panel rounded-2xl p-6"><div class="text-xs font-mono text-pink-400 font-bold">AI GESTURE CHALLENGE</div><h2 class="text-3xl font-black mt-1">Super Finger-Count Math Master</h2><p class="text-sm text-gray-400 mt-2">Show the exact number of fingers on your camera or simulator to solve math problems before time runs out!</p><div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-8 mt-6"><div class="grid grid-cols-3 gap-4 text-center font-mono"><div><div class="text-gray-400 text-xs">SCORE</div><div id="game-score-val" class="text-3xl font-black text-cyan-400">000</div></div><div><div class="text-gray-400 text-xs">TIME REMAINING</div><div id="game-timer-val" class="text-3xl font-black text-amber-400">15s</div></div><div><div class="text-gray-400 text-xs">STREAK</div><div id="game-streak-val" class="text-3xl font-black text-pink-400">0🔥</div></div></div><div class="text-center mt-8"><div id="game-equation-text" class="text-5xl font-black">0 + 0 = ?</div><div class="mt-3 text-gray-400">Target: <span id="game-target-num" class="text-cyan-400 font-bold">0</span> · Current: <span id="game-current-count" class="text-pink-400 font-bold">0</span></div><button id="start-game-btn" class="glass-button mt-6 px-6 py-3 rounded-xl font-bold">🎮 Start Game</button></div></div></section>
+        <section id="tab-actions" class="tab-content hidden glass-panel rounded-2xl p-6"><div class="text-xs font-mono text-cyan-400">ACTIONS</div><h2 class="text-2xl font-black mt-1">Studio Controls</h2><p class="text-gray-400 mt-2">Use the camera, simulator, fullscreen, sound and visual filters from the studio panel.</p></section>
+    </main>
+    <footer class="border-t border-slate-800 px-4 py-4 text-center text-xs text-gray-500 font-mono">FINGER-STREAM · Hand Gesture Studio · Browser-based MediaPipe demo</footer>
+    <script>
+        const state={inputMode:'simulator',leftHandFingers:{thumb:false,index:false,middle:false,ring:false,pinky:false},rightHandFingers:{thumb:false,index:false,middle:false,ring:false,pinky:false},bitrate:14.8,bitrateHistory:Array(40).fill(14.8),score:0,streak:0,timeLeft:15,targetNum:0,gameActive:false,gameInterval:null,soundEnabled:true,filter:'normal'};
+        const videoEl=document.getElementById('video-el'),canvas=document.getElementById('output-canvas'),ctx=canvas.getContext('2d');
+        const names=['thumb','index','middle','ring','pinky'];
+        function count(o){return Object.values(o).filter(Boolean).length}
+        function updateFingerTelemetryUI(){document.getElementById('left-count').innerText=count(state.leftHandFingers);document.getElementById('right-count').innerText=count(state.rightHandFingers);document.getElementById('total-count').innerText=count(state.leftHandFingers)+count(state.rightHandFingers);document.querySelectorAll('[data-hand][data-finger]').forEach(el=>{el.classList.toggle('active',state[el.dataset.hand+'HandFingers'][el.dataset.finger])});if(state.gameActive)checkGameAnswer(count(state.leftHandFingers)+count(state.rightHandFingers));}
+        function renderPipeline(){canvas.width=canvas.clientWidth||1280;canvas.height=canvas.clientHeight||720;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.save();if(state.inputMode==='simulator'){ctx.fillStyle='#05070c';ctx.fillRect(0,0,canvas.width,canvas.height);drawSimHand(canvas.width*.5,canvas.height*.58,state.leftHandFingers)}else{ctx.globalAlpha=.9;ctx.drawImage(videoEl,0,0,canvas.width,canvas.height)}if(state.filter==='neon'){ctx.globalCompositeOperation='screen';ctx.fillStyle='rgba(0,243,255,.08)';ctx.fillRect(0,0,canvas.width,canvas.height)}else if(state.filter==='thermal'){ctx.globalCompositeOperation='screen';ctx.fillStyle='rgba(255,0,80,.12)';ctx.fillRect(0,0,canvas.width,canvas.height)}else if(state.filter==='edge'){ctx.strokeStyle='#00f3ff';ctx.strokeRect(3,3,canvas.width-6,canvas.height-6)}ctx.restore();requestAnimationFrame(renderPipeline)}
+        function drawSimHand(cx,cy,fingerStates){ctx.save();ctx.translate(cx,cy);ctx.strokeStyle='#00f3ff';ctx.fillStyle='#00f3ff';ctx.lineWidth=5;ctx.shadowBlur=16;ctx.shadowColor='#00f3ff';const cfg=[['thumb',-2.3,65],['index',-1.6,90],['middle',-1.2,100],['ring',-.8,85],['pinky',-.3,70]];cfg.forEach(([n,a,l])=>{const ext=fingerStates[n],len=ext?l:l*.35,x=Math.cos(a)*len,y=Math.sin(a)*len;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(x,y);ctx.stroke();ctx.beginPath();ctx.arc(x,y,ext?10:6,0,Math.PI*2);ext?ctx.fill():ctx.stroke()});ctx.restore()}
+        function buildSimulator(){['left','right'].forEach(hand=>{const wrap=document.getElementById(hand+'-fingers');wrap.innerHTML='';names.forEach(n=>{const b=document.createElement('button');b.className='finger-node glass-button rounded-xl p-2 text-center text-xs';b.dataset.hand=hand;b.dataset.finger=n;b.innerHTML=n[0].toUpperCase();b.onclick=()=>{state[hand+'HandFingers'][n]=!state[hand+'HandFingers'][n];updateFingerTelemetryUI()};wrap.appendChild(b)})})}
+        buildSimulator();
+        document.querySelectorAll('.nav-tab').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.tab-content').forEach(s=>s.classList.add('hidden'));document.getElementById(btn.dataset.tab).classList.remove('hidden');document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active-tab','bg-gradient-to-r','from-cyan-500','to-teal-500','text-black'));btn.classList.add('active-tab','bg-gradient-to-r','from-cyan-500','to-teal-500','text-black')});
+        document.getElementById('sim-mode-btn').onclick=()=>{state.inputMode='simulator';document.getElementById('camera-prompt-overlay').classList.add('hidden')};
+        document.getElementById('sim-reset-btn').onclick=()=>{names.forEach(n=>{state.leftHandFingers[n]=false;state.rightHandFingers[n]=false});updateFingerTelemetryUI()};
+        document.getElementById('sim-random-btn').onclick=()=>{names.forEach(n=>{state.leftHandFingers[n]=Math.random()>.5;state.rightHandFingers[n]=Math.random()>.5});updateFingerTelemetryUI()};
+        document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.filter});
+        document.getElementById('fullscreen-btn').onclick=()=>document.documentElement.requestFullscreen?.();
+        document.getElementById('sound-toggle-btn').onclick=()=>{state.soundEnabled=!state.soundEnabled};
+        document.querySelectorAll('.cdn-node-card').forEach(card=>card.onclick=()=>document.getElementById('cdn-node-badge').innerText=card.innerText.trim().split('\n').pop());
+        let hands=null;function initMediaPipe(){hands=new Hands({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.6,minTrackingConfidence:.6});hands.onResults(r=>{if(state.inputMode!=='webcam')return;state.leftHandFingers={thumb:false,index:false,middle:false,ring:false,pinky:false};state.rightHandFingers={thumb:false,index:false,middle:false,ring:false,pinky:false};if(r.multiHandLandmarks&&r.multiHandedness)r.multiHandLandmarks.forEach((lm,i)=>{const isLeft=r.multiHandedness[i].label==='Right',o=isLeft?state.leftHandFingers:state.rightHandFingers;o.thumb=lm[4].x<lm[3].x;o.index=lm[8].y<lm[6].y;o.middle=lm[12].y<lm[10].y;o.ring=lm[16].y<lm[14].y;o.pinky=lm[20].y<lm[18].y});updateFingerTelemetryUI()})}
+        document.getElementById('start-cam-btn').onclick=async()=>{try{initMediaPipe();const stream=await navigator.mediaDevices.getUserMedia({video:{width:1280,height:720,facingMode:'user'}});videoEl.srcObject=stream;await videoEl.play();state.inputMode='webcam';document.getElementById('camera-prompt-overlay').classList.add('hidden');const camera=new Camera(videoEl,{onFrame:async()=>{if(state.inputMode==='webcam'&&hands)await hands.send({image:videoEl})},width:1280,height:720});camera.start()}catch(e){alert('Camera Access Error: '+e.message+'\nSwitching to Synthetic Hand Simulator Mode.');state.inputMode='simulator';document.getElementById('camera-prompt-overlay').classList.add('hidden')}};
+        const bc=document.getElementById('bitrate-chart-canvas'),bctx=bc.getContext('2d');function drawBitrateChart(){bc.width=bc.parentElement.clientWidth;bc.height=bc.parentElement.clientHeight;state.bitrate=Math.max(8,Math.min(25,state.bitrate+(Math.random()-.5)*1.5));state.bitrateHistory.push(state.bitrate);state.bitrateHistory.shift();document.getElementById('bitrate-val').innerText=state.bitrate.toFixed(1)+' Mbps';document.getElementById('bitrate-val-2').innerText=state.bitrate.toFixed(1)+' Mbps';bctx.clearRect(0,0,bc.width,bc.height);bctx.beginPath();state.bitrateHistory.forEach((v,i)=>{const x=i*bc.width/(state.bitrateHistory.length-1),y=bc.height-(v/30*bc.height);i?bctx.lineTo(x,y):bctx.moveTo(x,y)});bctx.strokeStyle='#00f3ff';bctx.lineWidth=2;bctx.stroke()}setInterval(drawBitrateChart,300);
+        const scoreEl=document.getElementById('game-score-val'),timerEl=document.getElementById('game-timer-val'),streakEl=document.getElementById('game-streak-val'),eqEl=document.getElementById('game-equation-text'),targetEl=document.getElementById('game-target-num'),currentEl=document.getElementById('game-current-count');function generateNewQuestion(){const a=Math.floor(Math.random()*6),b=Math.floor(Math.random()*5);state.targetNum=a+b;eqEl.innerText=`${a} + ${b} = ?`;targetEl.innerText=state.targetNum}function checkGameAnswer(c){currentEl.innerText=c;if(c===state.targetNum){state.score+=100+state.streak*20;state.streak++;state.timeLeft=Math.min(20,state.timeLeft+3);scoreEl.innerText=state.score;streakEl.innerText=state.streak+'🔥';generateNewQuestion();}}document.getElementById('start-game-btn').onclick=()=>{state.gameActive=true;state.score=0;state.streak=0;state.timeLeft=15;scoreEl.innerText='0';streakEl.innerText='0🔥';generateNewQuestion();clearInterval(state.gameInterval);state.gameInterval=setInterval(()=>{state.timeLeft--;timerEl.innerText=state.timeLeft+'s';if(state.timeLeft<=0){clearInterval(state.gameInterval);state.gameActive=false;alert(`🎉 Game Over!\nYour Final Score: ${state.score}\nMax Streak: ${state.streak}`)}},1000)};
+        window.addEventListener('load',()=>{renderPipeline();updateFingerTelemetryUI()});
+    </script>
+</body>
+</html>
