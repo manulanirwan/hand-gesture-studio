@@ -54,7 +54,3 @@ hand-gesture-studio/
     └── workflows/
         └── pages.yml
 ```
-
-## License
-
-No license has been specified yet. Add a license file if you plan to distribute the project publicly.
